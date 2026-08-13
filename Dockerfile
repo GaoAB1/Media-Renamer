@@ -21,7 +21,7 @@ RUN npm run build
 # ── Stage 2: 后端构建（编译原生模块 better-sqlite3，多架构各自编译）──
 FROM ${NODE_IMAGE} AS server-build
 # 构建工具仅本阶段需要，不进入最终镜像
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     python3 make g++ ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
@@ -46,12 +46,10 @@ ENV TZ=Asia/Shanghai \
     CONFIG_DIR=/config \
     PUBLIC_DIR=/app/public
 
-# 运行用户 + 权限切换工具（su-exec 极轻量，仅数十 KB）
+# 运行用户（权限切换用 setpriv，util-linux 内置，无需额外 apt 包）
+# runtime 阶段零 apt：TZ 由 Node full-ICU 处理时区，权限由 setpriv 切换
 RUN groupadd -g 1000 mediauser \
-    && useradd -u 1000 -g mediauser -m -d /home/mediauser mediauser \
-    && apt-get update \
-    && apt-get install -y --no-install-recommends su-exec tzdata \
-    && rm -rf /var/lib/apt/lists/*
+    && useradd -u 1000 -g mediauser -m -d /home/mediauser mediauser
 
 WORKDIR /app
 # 后端（含编译好的 better-sqlite3 原生模块，与基础镜像 glibc 兼容，直接可运行）
