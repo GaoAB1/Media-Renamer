@@ -46,11 +46,8 @@ ENV TZ=Asia/Shanghai \
     CONFIG_DIR=/config \
     PUBLIC_DIR=/app/public
 
-# 运行用户（权限切换用 setpriv，util-linux 内置，无需额外 apt 包）
-# runtime 阶段零 apt：TZ 由 Node full-ICU 处理时区，权限由 setpriv 切换
-RUN groupadd -g 1000 mediauser \
-    && useradd -u 1000 -g mediauser -m -d /home/mediauser mediauser
-
+# 权限方案：不创建额外用户（node 镜像自带 node 用户 uid/gid 1000，避免 GID 冲突）
+# runtime 阶段零 RUN：TZ 由 Node full-ICU 处理时区，权限由 setpriv 按数字 uid/gid 切换
 WORKDIR /app
 # 后端（含编译好的 better-sqlite3 原生模块，与基础镜像 glibc 兼容，直接可运行）
 COPY --from=server-build /app/node_modules ./node_modules
