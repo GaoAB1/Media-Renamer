@@ -22,11 +22,14 @@
 # 方式一：compose 编排（含卷挂载）
 docker compose up -d --build
 
-# 方式二：手动构建
+# 方式二：手动构建（多架构）
 docker build --build-arg NODE_IMAGE=docker.1panel.live/library/node:20-slim -t media-renamer:latest .
+# 多架构（amd64/arm64/armv7）：
+docker buildx build --platform linux/amd64,linux/arm64,linux/arm/v7 -t media-renamer:latest .
 
 # ── 直接启动（无需 compose，一条命令）──
 docker run -d --name media-renamer --restart unless-stopped \
+  -e PUID=0 -e PGID=0 \
   -p 3000:3000 \
   -v /path/to/config:/config \
   -v /path/to/your/movies:/media \
@@ -34,6 +37,8 @@ docker run -d --name media-renamer --restart unless-stopped \
 ```
 
 浏览器访问 http://localhost:3000，首次启动会引导创建管理员账号。镜像内置健康检查（`docker inspect` 可见 HEALTHCHECK）与 OCI 标准元数据 LABEL。
+
+**权限（同 MoviePilot）**：通过 `PUID` / `PGID` 环境变量将容器运行用户映射为宿主机用户，避免挂载卷权限问题——Linux 用 `id -u` / `id -g` 查 uid/gid（群晖默认 `1026:100`）。不设置则默认 root 运行。
 
 **离线分发**（NAS 无外网时）：
 ```bash
@@ -49,6 +54,15 @@ docker load -i media-renamer.tar
 > 若需更换，修改 `docker-compose.yml` 中 `build.args.NODE_IMAGE`，备选：`docker.1ms.run`、`docker.m.daocloud.io`。
 > 验证某个源是否可用：`curl -I https://<源>/v2/library/node/manifests/20-slim`（返回 200 即可用）。
 > 可直连 Docker Hub 的环境：删除 `NODE_IMAGE` 行即可用官方源。
+
+## 🤖 镜像自动发布（GitHub Actions）
+
+镜像构建与发布已封装为 CI（`.github/workflows/docker-build.yml`，MoviePilot 同款方案），push 到 GitHub 后自动构建**多架构镜像**并推送 **Docker Hub + GHCR**：
+
+1. 推送代码到 GitHub 仓库（master 分支）
+2. 配置仓库 Secrets：`DOCKER_USERNAME`、`DOCKER_PASSWORD`（Docker Hub 账号）
+3. 发布版本：打标签 `git tag v1.0.0 && git push --tags` → 自动构建 `v1.0.0` 镜像；master 分支更新自动构建 `latest`
+4. 拉取镜像：`docker pull <你的用户名>/media-renamer:latest` 或 `ghcr.io/<你的用户名>/<仓库>:latest`
 
 ## 🛠 本地开发
 
