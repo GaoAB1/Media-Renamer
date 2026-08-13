@@ -1,0 +1,16 @@
+# 依赖与构建产物
+node_modules/
+dist/
+data/
+*.timestamp-*.mjs
+
+# 运行时数据
+config/
+
+# 日志与临时
+*.log
+.DS_Store
+Thumbs.db
+
+# 本地记忆/截图（非项目代码）
+.workbuddy/
