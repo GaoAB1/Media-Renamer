@@ -6,6 +6,7 @@
 # 运行用户映射为宿主机用户，彻底解决挂载卷文件权限问题。
 #   · PUID/PGID 未设置或为 0 → 以 root 运行（默认，开箱即用）
 #   · PUID/PGID 设置为宿主 uid/gid（如群晖 1026）→ 以对应权限运行
+# 权限切换使用 setpriv（util-linux 内置，镜像零额外依赖）
 # ═══════════════════════════════════════════════════════════════
 set -e
 
@@ -27,5 +28,5 @@ echo "[entrypoint] Media Renamer 启动，TZ=${TZ:-Asia/Shanghai}"
 if [ "${PUID}" = "0" ] && [ "${PGID}" = "0" ]; then
   exec node src/index.js
 else
-  exec su-exec mediauser:mediauser node src/index.js
+  exec setpriv --reuid "${PUID}" --regid "${PGID}" --clear-groups node src/index.js
 fi
