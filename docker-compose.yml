@@ -1,42 +1,61 @@
-# ── Media Renamer 部署（MoviePilot 式）──
-# 启动后访问 http://localhost:3000 首次启动会引导创建管理员
+# ═══════════════════════════════════════════════════════════════
+# Media Renamer 部署（Docker Compose）
+# 镜像：GHCR 多架构（linux/amd64 · arm64 · arm/v7），一键拉取即用
 #
-# 卷说明：
-#   ./config   持久化存储（SQLite 数据库 + config.json 配置文件）
-#   /media     影视文件根目录，按需修改为实际媒体文件挂载点
+# 快速开始：
+#   docker compose up -d          # 拉取镜像并启动
+#   docker compose pull && docker compose up -d   # 更新到最新版
 #
-# 权限说明（同 MoviePilot）：
-#   PUID/PGID 设为宿主机用户 uid/gid（Linux: id -u / id -g；群晖默认 1026:100）
-#   容器将以该权限运行，避免挂载卷文件权限问题；不设置则以 root 运行。
+# 权限（同 MoviePilot）：
+#   PUID/PGID 设为宿主机用户 uid/gid，避免挂载卷权限问题
+#     · Linux 查询：id -u / id -g
+#     · 群晖默认：1026:100
+#   不设置（0:0）则以 root 运行，开箱即用
 #
-# 镜像源说明：
-#   默认使用公共加速源 docker.1panel.live（2026-08 实测可用），
-#   若你的环境可直连 Docker Hub，删除下方 NODE_IMAGE 即可使用官方源。
-#   验证命令：curl -I https://docker.1panel.live/v2/library/node/manifests/20-slim
+# 卷：
+#   ./config      持久化存储（SQLite 数据库 + config.json）
+#   媒体目录      按需取消注释并修改挂载（重命名需要写权限，勿加 :ro）
+# ═══════════════════════════════════════════════════════════════
 
 services:
   media-renamer:
-    image: media-renamer:latest
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        NODE_IMAGE: docker.1panel.live/library/node:20-slim
+    image: ghcr.io/gaoab1/media-renamer:latest
     container_name: media-renamer
     restart: unless-stopped
     ports:
       - "3000:3000"
     environment:
       - TZ=Asia/Shanghai
-      - PUID=0          # 宿主机用户 uid（Linux: id -u；群晖默认 1026）
-      - PGID=0          # 宿主机用户 gid（Linux: id -g；群晖默认 100）
-      - CONFIG_DIR=/config
+      - PUID=0                # 宿主机用户 uid（Linux: id -u；群晖默认 1026）
+      - PGID=0                # 宿主机用户 gid（Linux: id -g；群晖默认 100）
       - JWT_SECRET=change-me-to-a-long-random-string-in-production
     volumes:
       - ./config:/config
-      # 媒体目录挂载示例：按需修改或删除
-      # - /path/to/your/movies:/media/movies:ro
-      # - /path/to/your/tv:/media/tv:ro
-    # 健康检查已内置镜像（HEALTHCHECK），如需自定义可在此覆盖
-    # healthcheck:
-    #   test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      # 媒体目录挂载示例（重命名需要写权限，请勿加 :ro）：
+      # - /path/to/your/movies:/media/movies
+      # - /path/to/your/tv:/media/tv
+
+# ── 本地构建模式（开发 / 自建镜像源）──
+# 如需从源码构建而非拉取 GHCR 镜像，取消下方注释并移除上方 image 行：
+#
+# services:
+#   media-renamer:
+#     build:
+#       context: .
+#       dockerfile: Dockerfile
+#       args:
+#         NODE_IMAGE: docker.1panel.live/library/node:20-slim   # 可直连 Docker Hub 则用 node:20-slim
+#     image: media-renamer:local
+#     container_name: media-renamer
+#     restart: unless-stopped
+#     ports:
+#       - "3000:3000"
+#     environment:
+#       - TZ=Asia/Shanghai
+#       - PUID=0
+#       - PGID=0
+#       - JWT_SECRET=change-me-to-a-long-random-string-in-production
+#     volumes:
+#       - ./config:/config
+#       # - /path/to/your/movies:/media/movies
+#       # - /path/to/your/tv:/media/tv
