@@ -4,7 +4,9 @@
 #   · push 到 master/main → 构建 latest + 推送 GHCR
 #   · 打 v* 标签（如 v1.0.0）→ 构建对应版本 tag
 #   · 手动 workflow_dispatch 也可触发
-# 无需配置任何 Secrets（GITHUB_TOKEN 自动注入，公开仓库镜像默认公开可匿名拉取）
+# GHCR 认证（二选一，优先 PAT）：
+#   · 仓库 Secret GHCR_PAT（Fine-grained PAT，勾选 write:packages）
+#   · 或 GITHUB_TOKEN（需 Settings→Actions→Workflow permissions 设为 Read and write）
 # ═══════════════════════════════════════════════════════════════
 name: buildx
 
@@ -32,7 +34,7 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ secrets.GHCR_PAT || secrets.GITHUB_TOKEN }}
 
       - name: 生成镜像标签
         id: meta
