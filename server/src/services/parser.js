@@ -4,6 +4,8 @@
  *      https://emby.media/support/articles/Movie-Naming.html
  */
 
+const path = require('path');
+
 const VIDEO_EXT = new Set([
   '.mkv', '.mp4', '.avi', '.ts', '.m2ts', '.wmv', '.flv', '.mov', '.rmvb',
   '.webm', '.iso', '.dvd', '.bluray', '.strm', '.m4v', '.mpeg', '.mpg', '.vob',
@@ -90,7 +92,9 @@ function parseEpisode(str) {
   }
   if (!m) {
     // 2.5) 3 位简写 102 => S01E02（Emby: anything_102.ext）
-    m = str.match(/(?<![0-9A-Za-z])(\d{1})(\d{2})(?![0-9])/);
+    // 注意：先剔除分辨率标记（720p/480p/2160p），否则 720p 会被误匹配成 S7E20
+    const noRes = str.replace(/\b\d{3,4}p\b/i, ' ');
+    m = noRes.match(/(?<![0-9A-Za-z])(\d{1})(\d{2})(?![0-9])/);
     if (m) sep = 'short';
   }
 
@@ -107,6 +111,22 @@ function parseEpisode(str) {
         epEnd: null,
         epName: null,
         epDate: dm[1] + '-' + String(dm[3]).padStart(2, '0') + '-' + String(dm[4]).padStart(2, '0'),
+      };
+    }
+    // 4) 整季/合集: anything.S01 / anything.Season.1 / anything.Complete
+    const sm = str.match(/(?<![0-9A-Za-z])S(\d{1,2})(?![0-9])|(?<![0-9A-Za-z])Season[\._\- ]?(\d{1,2})(?![0-9])/i);
+    if (sm) {
+      const season = parseInt(sm[1] || sm[2], 10);
+      const marker = sm[0];
+      const left = original.slice(0, original.indexOf(marker));
+      return {
+        type: 'tv',
+        name: normalizeTitle(left) || 'Unknown',
+        season,
+        epStart: null,
+        epEnd: null,
+        epName: null,
+        epDate: null,
       };
     }
     return null;
@@ -175,10 +195,51 @@ function parseMovie(str) {
 }
 
 /**
+ * 判断文件是否位于「剧集特征目录」中：向上看 3 层，
+ * 命中 Season x / Sxx / Specials 等目录名即为剧集。
+ * 覆盖「用户把整个库目录配成 movie 但内部按 Emby 剧集结构组织」的场景。
+ */
+function isTvDirChain(dir) {
+  if (!dir) return false;
+  let cur = dir;
+  for (let i = 0; i < 4; i++) {
+    const name = path.basename(cur);
+    if (/^season\s*\d{1,2}$/i.test(name)) return true;
+    if (/^s\d{1,2}$/i.test(name)) return true;
+    if (/^specials?$/i.test(name)) return true;
+    const parent = path.dirname(cur);
+    if (parent === cur) break;
+    cur = parent;
+  }
+  return false;
+}
+
+/** 从目录链提取季号（Season x / Sxx），找不到返回 null */
+function extractSeasonFromChain(dir) {
+  if (!dir) return null;
+  let cur = dir;
+  for (let i = 0; i < 4; i++) {
+    const name = path.basename(cur);
+    let m = name.match(/^season\s*(\d{1,2})$/i) || name.match(/^s(\d{1,2})$/i);
+    if (m) return parseInt(m[1], 10);
+    const parent = path.dirname(cur);
+    if (parent === cur) break;
+    cur = parent;
+  }
+  return null;
+}
+
+function escapeReg(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
  * 主入口：解析完整文件路径/文件名
+ * options: { hint: 'movie'|'tv'（媒体目录配置类型）, dirChain: 文件所在目录（向上探测 Season 结构） }
  * 返回 { type, name, year, season, epStart, epEnd, epName, epDate, resolution, version }
  */
 function parseFile(fileName, options = {}) {
+  const { hint, dirChain } = options || {};
   const extMatch = fileName.match(/\.([A-Za-z0-9]+)$/);
   const extension = extMatch ? extMatch[1].toLowerCase() : '';
   const base = fileName.replace(/\.[A-Za-z0-9]+$/, '');
@@ -203,6 +264,30 @@ function parseFile(fileName, options = {}) {
     };
   }
 
+  // 目录上下文是剧集（配置类型 tv 或目录链含 Season 结构）→ 无 S/E 标记也按剧集入库
+  const inTvContext = hint === 'tv' || isTvDirChain(dirChain);
+  if (inTvContext) {
+    const mv = parseMovie(base);
+    let name = mv.name;
+    // 剔除标题残留的分辨率标记（如 "Friends.1080p" -> "Friends"）
+    if (resolution) {
+      name = name.replace(new RegExp('\\b' + escapeReg(resolution) + '\\b', 'i'), ' ').replace(/\s+/g, ' ').trim();
+    }
+    return {
+      type: 'tv',
+      name: name || 'Unknown',
+      year: mv.year,
+      season: extractSeasonFromChain(dirChain),
+      epStart: null,
+      epEnd: null,
+      epName: null,
+      epDate: null,
+      resolution,
+      version: mv.version,
+      extension,
+    };
+  }
+
   // 电影解析
   const movie = parseMovie(base);
   return {
@@ -223,4 +308,5 @@ function parseFile(fileName, options = {}) {
 module.exports = {
   VIDEO_EXT, EXTRA_DIRS, EXTRA_SUFFIX,
   isVideoExt, isExtraDir, parseFile, extractYear, extractResolution,
+  isTvDirChain, extractSeasonFromChain,
 };

@@ -71,7 +71,13 @@ function scanAll() {
       for (const f of allFiles) {
         const rel = path.relative(path.dirname(f), f);
         const parentDir = path.basename(path.dirname(f));
-        const p = parseFile(path.basename(f));
+        const dirConfig = dirs
+          .filter(d => f.startsWith(d.path))
+          .sort((a, b) => b.path.length - a.path.length)[0];
+        const p = parseFile(path.basename(f), {
+          hint: dirConfig && dirConfig.type === 'tv' ? 'tv' : (dirConfig ? dirConfig.type : undefined),
+          dirChain: path.dirname(f),
+        });
         const isExtra = isExtraDir(parentDir);
         items.push({
           type: p.type,
