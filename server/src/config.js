@@ -8,6 +8,9 @@ const DB_FILE = path.join(CONFIG_DIR, 'media.db');
 
 const DEFAULTS = {
   tmdb_api_key: '',
+  tmdb_base_url: '',       // 自定义 TMDB API 根地址（镜像）
+  tmdb_timeout: 15000,      // 请求超时毫秒
+  tmdb_proxy: '',           // HTTP/HTTPS 代理地址，如 http://127.0.0.1:7890
   media_dirs: [],          // [{ path: '/media/movies', type: 'movie' }, ...]
   rename_mode: 'file',     // file=仅重命名文件 / full=Emby完整目录结构
   movie_folder: 'Movies',

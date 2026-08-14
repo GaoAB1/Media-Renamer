@@ -3,6 +3,8 @@ const fs = require('fs');
 const path = require('path');
 const { authRequired } = require('../middleware/auth');
 const config = require('../config');
+const tmdb = require('../services/tmdb');
+const log = require('../services/logger').create('settings');
 
 const router = express.Router();
 router.use(authRequired);
@@ -52,6 +54,9 @@ router.get('/', (req, res) => {
   res.json({
     tmdb_api_key: config.get('tmdb_api_key') ? '••••••••' + config.get('tmdb_api_key').slice(-4) : '',
     has_tmdb_key: !!config.get('tmdb_api_key'),
+    tmdb_base_url: config.get('tmdb_base_url') || '',
+    tmdb_timeout: config.get('tmdb_timeout') || 15000,
+    tmdb_proxy: config.get('tmdb_proxy') || '',
     media_dirs: config.get('media_dirs') || [],
     rename_mode: config.get('rename_mode') || 'file',
   });
@@ -59,8 +64,25 @@ router.get('/', (req, res) => {
 
 // 更新设置（完整值）
 router.put('/', (req, res) => {
-  const { tmdb_api_key, media_dirs, rename_mode } = req.body || {};
-  if (typeof tmdb_api_key === 'string') config.set('tmdb_api_key', tmdb_api_key.trim());
+  const { tmdb_api_key, media_dirs, rename_mode, tmdb_base_url, tmdb_timeout, tmdb_proxy } = req.body || {};
+  if (typeof tmdb_api_key === 'string') {
+    const v = tmdb_api_key.trim();
+    if (v && !v.includes('•••')) config.set('tmdb_api_key', v);
+    else if (v === '' && config.get('tmdb_api_key')) {
+      config.set('tmdb_api_key', '');
+    }
+  }
+  if (typeof tmdb_base_url === 'string') {
+    const b = tmdb_base_url.trim().replace(/\/+$/, '');
+    config.set('tmdb_base_url', b);
+  }
+  if (typeof tmdb_proxy === 'string') {
+    config.set('tmdb_proxy', tmdb_proxy.trim().replace(/\/+$/, ''));
+  }
+  if (tmdb_timeout !== undefined) {
+    const n = parseInt(tmdb_timeout, 10);
+    if (Number.isFinite(n) && n >= 3000 && n <= 60000) config.set('tmdb_timeout', n);
+  }
   if (Array.isArray(media_dirs)) {
     const clean = media_dirs
       .filter(d => d && d.path && d.path.trim())
@@ -68,7 +90,19 @@ router.put('/', (req, res) => {
     config.set('media_dirs', clean);
   }
   if (rename_mode === 'file' || rename_mode === 'full') config.set('rename_mode', rename_mode);
-  res.json({ ok: true, settings: { tmdb_api_key: config.get('tmdb_api_key') ? '已配置' : '', media_dirs: config.get('media_dirs'), rename_mode: config.get('rename_mode') } });
+  res.json({ ok: true, settings: { tmdb_api_key: config.get('tmdb_api_key') ? '已配置' : '', tmdb_base_url: config.get('tmdb_base_url'), tmdb_timeout: config.get('tmdb_timeout'), tmdb_proxy: config.get('tmdb_proxy'), media_dirs: config.get('media_dirs'), rename_mode: config.get('rename_mode') } });
+});
+
+// 测试 TMDB 连接（设置页按钮）
+router.post('/tmdb-test', async (req, res) => {
+  try {
+    const r = await tmdb.testConnection();
+    log.info('TMDB 连接测试成功', { base: r.base, cost: r.cost });
+    res.json({ ok: true, ...r });
+  } catch (e) {
+    log.error('TMDB 连接测试失败', { error: e.message });
+    res.json({ ok: false, message: e.message, base: tmdb.apiBase() });
+  }
 });
 
 module.exports = router;

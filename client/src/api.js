@@ -30,6 +30,18 @@ export const api = {
   getSettings: () => request('/api/settings'),
   saveSettings: (s) => request('/api/settings', { method: 'PUT', body: JSON.stringify(s) }),
   browseDirs: (p) => request(`/api/settings/browse?path=${encodeURIComponent(p || '')}`),
+  tmdbTest: () => request('/api/settings/tmdb-test', { method: 'POST' }),
+
+  // logs
+  getLogs: (params = {}) => {
+    const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v !== '' && v != null)).toString();
+    return request(`/api/logs?${qs}`);
+  },
+  clearLogs: () => request('/api/logs', { method: 'DELETE' }),
+  getRenameLogs: (params = {}) => {
+    const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v !== '' && v != null)).toString();
+    return request(`/api/logs/rename?${qs}`);
+  },
 
   // library
   scan: () => request('/api/library/scan', { method: 'POST' }),

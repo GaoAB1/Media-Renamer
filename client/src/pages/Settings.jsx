@@ -4,15 +4,23 @@ import { toast } from '../components/Toast.jsx';
 import DirPicker from '../components/DirPicker.jsx';
 
 export default function Settings() {
-  const [form, setForm] = useState({ tmdb_api_key: '', media_dirs: [], rename_mode: 'file' });
+  const [form, setForm] = useState({
+    tmdb_api_key: '', tmdb_base_url: '', tmdb_timeout: 15000, tmdb_proxy: '',
+    media_dirs: [], rename_mode: 'file',
+  });
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [dirPicker, setDirPicker] = useState(null); // 正在浏览的目录 index
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState(null);
+  const [dirPicker, setDirPicker] = useState(null);
 
   useEffect(() => {
     api.getSettings().then(s => {
       setForm({
         tmdb_api_key: s.has_tmdb_key ? s.tmdb_api_key : '',
+        tmdb_base_url: s.tmdb_base_url || '',
+        tmdb_timeout: s.tmdb_timeout || 15000,
+        tmdb_proxy: s.tmdb_proxy || '',
         media_dirs: s.media_dirs,
         rename_mode: s.rename_mode,
       });
@@ -27,11 +35,28 @@ export default function Settings() {
 
   async function save() {
     setBusy(true);
+    setTestResult(null);
     try {
       await api.saveSettings(form);
       toast.success('设置已保存');
     } catch (e) { toast.error(e.message); }
     finally { setBusy(false); }
+  }
+
+  async function testConn() {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      // 先保存再测试，确保后端读到最新值
+      await api.saveSettings(form);
+      const r = await api.tmdbTest();
+      setTestResult(r);
+      if (r.ok) toast.success(`连接成功（${r.cost}ms · ${r.proxy || '直连'}）`);
+      else toast.error(r.message || '连接失败');
+    } catch (e) {
+      setTestResult({ ok: false, message: e.message });
+      toast.error(e.message);
+    } finally { setTesting(false); }
   }
 
   if (!loaded) return <div className="container"><span className="spin" style={{ width: 22, height: 22, margin: '40px auto', display: 'block' }} /></div>;
@@ -41,7 +66,7 @@ export default function Settings() {
       <div className="page-head">
         <div>
           <h1 className="page-title">设置</h1>
-          <p className="page-sub">TMDB 凭据、媒体目录与命名规则</p>
+          <p className="page-sub">TMDB 凭据、网络、媒体目录与命名规则</p>
         </div>
       </div>
 
@@ -54,6 +79,46 @@ export default function Settings() {
               placeholder="在 https://www.themoviedb.org/settings/api 获取"
               onChange={e => setForm({ ...form, tmdb_api_key: e.target.value })} />
             <p className="muted" style={{ marginTop: 6 }}>用于电影/剧集元数据识别，可在官方免费申请</p>
+          </div>
+
+          <div className="field">
+            <label>API 地址（可选镜像）</label>
+            <input className="input" value={form.tmdb_base_url}
+              placeholder="留空使用官方 https://api.themoviedb.org/3"
+              onChange={e => setForm({ ...form, tmdb_base_url: e.target.value })} />
+            <p className="muted" style={{ marginTop: 6 }}>可填写第三方 TMDB API 反代/镜像地址，无需 https 前缀也可。</p>
+          </div>
+
+          <div className="field">
+            <label>HTTP 代理（可选）</label>
+            <input className="input" value={form.tmdb_proxy}
+              placeholder="如 http://127.0.0.1:7890 — 留空则直连"
+              onChange={e => setForm({ ...form, tmdb_proxy: e.target.value })} />
+            <p className="muted" style={{ marginTop: 6 }}>
+              Node 18+ 的 fetch 默认不走系统代理。若 NAS 无法直连 TMDB，在此填写代理地址即可。
+              也支持环境变量 <code>HTTPS_PROXY</code> / <code>HTTP_PROXY</code> 兜底。
+            </p>
+          </div>
+
+          <div className="field">
+            <label>请求超时（毫秒）</label>
+            <input className="input" type="number" min="3000" max="60000" step="1000"
+              value={form.tmdb_timeout}
+              onChange={e => setForm({ ...form, tmdb_timeout: parseInt(e.target.value, 10) || 15000 })} />
+            <p className="muted" style={{ marginTop: 6 }}>范围 3000–60000ms，默认 15000ms</p>
+          </div>
+
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 4 }}>
+            <button className="btn" onClick={testConn} disabled={testing}>
+              {testing ? <><span className="spin" /> 测试中…</> : '🔌 测试连接'}
+            </button>
+            {testResult && (
+              <div style={{ fontSize: 13 }}>
+                {testResult.ok
+                  ? <span style={{ color: '#248a3d' }}>✓ {testResult.cost}ms · {testResult.proxy || '直连'}</span>
+                  : <span style={{ color: '#d70015' }}>✕ {testResult.message}</span>}
+              </div>
+            )}
           </div>
         </div>
       </div>
