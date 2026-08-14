@@ -6,6 +6,7 @@ import Login from './pages/Login.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Library from './pages/Library.jsx';
 import Settings from './pages/Settings.jsx';
+import Logs from './pages/Logs.jsx';
 import { ToastHost, toast } from './components/Toast.jsx';
 
 function Shell({ user, onLogout }) {
@@ -18,6 +19,7 @@ function Shell({ user, onLogout }) {
           <div className="nav-links">
             <NavLink to="/" end className={({ isActive }) => 'nav-link' + (isActive ? ' active' : '')}>仪表盘</NavLink>
             <NavLink to="/library" className={({ isActive }) => 'nav-link' + (isActive ? ' active' : '')}>媒体库</NavLink>
+            <NavLink to="/logs" className={({ isActive }) => 'nav-link' + (isActive ? ' active' : '')}>日志</NavLink>
             <NavLink to="/settings" className={({ isActive }) => 'nav-link' + (isActive ? ' active' : '')}>设置</NavLink>
           </div>
           <div className="nav-spacer" />
@@ -28,6 +30,7 @@ function Shell({ user, onLogout }) {
       <Routes>
         <Route path="/" element={<Dashboard />} />
         <Route path="/library" element={<Library />} />
+        <Route path="/logs" element={<Logs />} />
         <Route path="/settings" element={<Settings />} />
       </Routes>
       <ToastHost />
